@@ -195,10 +195,10 @@ pub fn thinning_zs_tiled(
                     && (ti_y == 0 || tile_flags[(ti_y - 1) * ntx + ti_x] & FLAG_DONE != 0)
                     && (ti_x == ntx - 1 || tile_flags[ti_y * ntx + ti_x + 1] & FLAG_DONE != 0)
                     && (ti_y == nty - 1 || tile_flags[(ti_y + 1) * ntx + ti_x] & FLAG_DONE != 0)
-                    && ((ti_y == nty - 1 && ti_x == ntx - 1) || tile_flags[(ti_y + 1) * ntx + ti_x + 1] & FLAG_DONE != 0)
-                    && ((ti_y == nty - 1 && ti_x == 0) || tile_flags[(ti_y + 1) * ntx + ti_x - 1] & FLAG_DONE != 0)
-                    && ((ti_y == 0 &&  ti_x == ntx - 1) || tile_flags[(ti_y - 1) * ntx + ti_x + 1] & FLAG_DONE != 0)
-                    && ((ti_y == 0 && ti_x == 0) || tile_flags[(ti_y - 1) * ntx + ti_x - 1] & FLAG_DONE != 0)
+                    && ((ti_y == nty - 1 || ti_x == ntx - 1) || tile_flags[(ti_y + 1) * ntx + ti_x + 1] & FLAG_DONE != 0)
+                    && ((ti_y == nty - 1 || ti_x == 0) || tile_flags[(ti_y + 1) * ntx + ti_x - 1] & FLAG_DONE != 0)
+                    && ((ti_y == 0 || ti_x == ntx - 1) || tile_flags[(ti_y - 1) * ntx + ti_x + 1] & FLAG_DONE != 0)
+                    && ((ti_y == 0 || ti_x == 0) || tile_flags[(ti_y - 1) * ntx + ti_x - 1] & FLAG_DONE != 0)
                 {
                     continue;
                 }
