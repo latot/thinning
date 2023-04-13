@@ -144,6 +144,7 @@ pub fn thinning_zs(im: &mut [u8], w: usize, h: usize) {
         dbg!(iter);
         let mut diff = false;
         if dbg!(thinning_zs_iteration(im, 0, 0, w, h, w, h)) {
+            thinning_zs_post(im, 0, 0, w, h, w);
             diff = true;
         }
         if !diff {
