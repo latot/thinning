@@ -121,6 +121,7 @@ fn thinning_zs_iteration(
               }
           }
       }
+      thinning_zs_post(im, win_x, win_y, win_w, win_h, w);
     }
     return diff;
 }
