@@ -187,7 +187,7 @@ pub fn thinning_zs_tiled(
         }
         let pb = ProgressBar::new(remaining_tiles as u64).with_message("Starting thinning");
         log::info!("Starting iteration {iter}, {remaining_tiles}/{total_tiles}");
-        log::info!("Starting thinning H");
+        log::info!("Starting thinning");
 
         for ti_y in 0..nty {
             for ti_x in 0..ntx {
