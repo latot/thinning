@@ -35,7 +35,7 @@ const N_TEMPL: [u8; 8] = [
 2
 ];
 
-fn encode_neightbours(im: &[u8], i: usize, j: usize, w: usize, neg: bool) -> u8 {
+fn encode_neighbours(im: &[u8], i: usize, j: usize, w: usize, neg: bool) -> u8 {
   let p2: u8 = im[(i - 1) * w + j] & 1;
   let p3: u8 = im[(i - 1) * w + j + 1] & 1;
   let p4: u8 = im[(i) * w + j + 1] & 1;
@@ -44,30 +44,17 @@ fn encode_neightbours(im: &[u8], i: usize, j: usize, w: usize, neg: bool) -> u8 
   let p7: u8 = im[(i + 1) * w + j - 1] & 1;
   let p8: u8 = im[(i) * w + j - 1] & 1;
   let p1: u8 = im[(i - 1) * w + j - 1] & 1;
-  let t: u8;
   
-  if neg {
-    t =
-      (!p6 << 5) |
-      (!p7 << 6) |
-      (!p8 << 7) |
-      !p1 |
-      (!p2 << 1) |
-      (!p3 << 2) |
-      (!p4 << 3) |
-      (!p5 << 4);  
-  } else {
-    t =
-      (p6 << 5) |
-      (p7 << 6) |
-      (p8 << 7) |
-      p1 |
-      (p2 << 1) |
-      (p3 << 2) |
-      (p4 << 3) |
-      (p5 << 4);  
-  }
-  return t;
+  let k = !neg as u8;
+
+    ((p4 ^ k) << 5)
+        | ((p3 ^ k) << 6)
+        | ((p2 ^ k) << 7)
+        | (p1 ^ k)
+        | ((p8 ^ k) << 1)
+        | ((p7 ^ k) << 2)
+        | ((p6 ^ k) << 3)
+        | ((p5 ^ k) << 4)
 }
 
 fn thinning_zs_iteration(
@@ -113,8 +100,8 @@ fn thinning_zs_iteration(
               if p1 == 0 {
                   continue;
               }
-              let w_: u8 = encode_neightbours(&im, i, j, w, true);
-              let n_w_: u8 = encode_neightbours(&im, i, j, w, false);
+              let w_: u8 = encode_neighbours(&im, i, j, w, true);
+              let n_w_: u8 = encode_neighbours(&im, i, j, w, false);
               if
               (
                 ((TEMPL[ind1] & w_) == TEMPL[ind1]) &&
@@ -134,6 +121,7 @@ fn thinning_zs_iteration(
               }
           }
       }
+      thinning_zs_post(im, win_x, win_y, win_w, win_h, w);
     }
     return diff;
 }
