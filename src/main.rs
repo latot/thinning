@@ -11,14 +11,65 @@ use indicatif::ProgressBar;
 use log::LevelFilter;
 use memmap2::{Mmap, MmapMut};
 
-mod skeleton;
+// Implementation of https://github.com/OSGeo/grass/blob/main/raster/r.thin/thin_lines.c
 
-//================================
-// RASTER SKELETONIZATION
-//================================
-// Binary image thinning (skeletonization) in-place.
-// Implements Zhang-Suen algorithm.
-// http://agcggs680.pbworks.com/f/Zhan-Suen_algorithm.pdf
+const TEMPL: [u8; 8] = [
+40,
+10,
+130,
+160,
+42,
+138,
+162,
+168
+];
+
+const N_TEMPL: [u8; 8] = [
+131,
+224,
+56,
+14,
+128,
+32,
+8,
+2
+];
+
+fn encode_neightbours(im: &[u8], i: usize, j: usize, w: usize, neg: bool) -> u8 {
+  let p2: u8 = im[(i - 1) * w + j] & 1;
+  let p3: u8 = im[(i - 1) * w + j + 1] & 1;
+  let p4: u8 = im[(i) * w + j + 1] & 1;
+  let p5: u8 = im[(i + 1) * w + j + 1] & 1;
+  let p6: u8 = im[(i + 1) * w + j] & 1;
+  let p7: u8 = im[(i + 1) * w + j - 1] & 1;
+  let p8: u8 = im[(i) * w + j - 1] & 1;
+  let p1: u8 = im[(i - 1) * w + j - 1] & 1;
+  let t: u8;
+  
+  if neg {
+    t =
+      (!p6 << 5) |
+      (!p7 << 6) |
+      (!p8 << 7) |
+      !p1 |
+      (!p2 << 1) |
+      (!p3 << 2) |
+      (!p4 << 3) |
+      (!p5 << 4);  
+  } else {
+    t =
+      (p6 << 5) |
+      (p7 << 6) |
+      (p8 << 7) |
+      p1 |
+      (p2 << 1) |
+      (p3 << 2) |
+      (p4 << 3) |
+      (p5 << 4);  
+  }
+  return t;
+}
+
 fn thinning_zs_iteration(
     im: &mut [u8],
     win_x: usize,
@@ -26,8 +77,7 @@ fn thinning_zs_iteration(
     win_w: usize,
     win_h: usize,
     w: usize,
-    h: usize,
-    iter: i32,
+    h: usize
 ) -> bool {
     let mut diff: bool = false;
     let min_x = if win_x == 0 { 1 } else { win_x };
@@ -42,48 +92,65 @@ fn thinning_zs_iteration(
     } else {
         win_y + win_h
     };
-    for i in min_y..max_y {
-        for j in min_x..max_x {
-            let p1: u8 = im[i * w + j] & 1;
-            if p1 == 0 {
-                continue;
-            }
+    for r in 1..5 {
+      let ind1: usize;
+      let ind2: usize;
+      let ind3: usize;
+      
+      ind1 = r - 1;
 
-            let p2: u8 = im[(i - 1) * w + j] & 1;
-            let p3: u8 = im[(i - 1) * w + j + 1] & 1;
-            let p4: u8 = im[(i) * w + j + 1] & 1;
-            let p5: u8 = im[(i + 1) * w + j + 1] & 1;
-            let p6: u8 = im[(i + 1) * w + j] & 1;
-            let p7: u8 = im[(i + 1) * w + j - 1] & 1;
-            let p8: u8 = im[(i) * w + j - 1] & 1;
-            let p9: u8 = im[(i - 1) * w + j - 1] & 1;
-            let a: u8 = (p2 == 0 && p3 == 1) as u8
-                + (p3 == 0 && p4 == 1) as u8
-                + (p4 == 0 && p5 == 1) as u8
-                + (p5 == 0 && p6 == 1) as u8
-                + (p6 == 0 && p7 == 1) as u8
-                + (p7 == 0 && p8 == 1) as u8
-                + (p8 == 0 && p9 == 1) as u8
-                + (p9 == 0 && p2 == 1) as u8;
-            let b: u8 = p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9;
-            let m1: u8 = if iter == 0 {
-                p2 * p4 * p6
-            } else {
-                p2 * p4 * p8
-            };
-            let m2: u8 = if iter == 0 {
-                p4 * p6 * p8
-            } else {
-                p2 * p6 * p8
-            };
-            if a == 1 && (b >= 2 && b <= 6) && m1 == 0 && m2 == 0 {
-                diff = true;
-                im[i * w + j] |= 2;
-            }
-        }
+      if r <= 3 {
+        ind2 = r;
+      } else {
+        ind2 = 0;
+      }
+
+      ind3 = (r - 1) + 4;
+
+      for i in min_y..max_y {
+          for j in min_x..max_x {
+              let p1: u8 = im[i * w + j] & 1;
+              if p1 == 0 {
+                  continue;
+              }
+              let w_: u8 = encode_neightbours(&im, i, j, w, true);
+              let n_w_: u8 = encode_neightbours(&im, i, j, w, false);
+              if
+              (
+                ((TEMPL[ind1] & w_) == TEMPL[ind1]) &&
+                ((N_TEMPL[ind1] & n_w_) == N_TEMPL[ind1])
+              ) ||
+              (
+                ((TEMPL[ind2] & w_) == TEMPL[ind2]) &&
+                ((N_TEMPL[ind2] & n_w_) == N_TEMPL[ind2])
+              ) ||
+              (
+                ((TEMPL[ind3] & w_) == TEMPL[ind3]) &&
+                ((N_TEMPL[ind3] & n_w_) == N_TEMPL[ind3])
+              )
+              {
+                  diff = true;
+                  im[i * w + j] |= 2;
+              }
+          }
+      }
     }
-
     return diff;
+}
+
+pub fn thinning_zs(im: &mut [u8], w: usize, h: usize) {
+    let mut iter = 0;
+    loop {
+        dbg!(iter);
+        let mut diff = false;
+        if dbg!(thinning_zs_iteration(im, 0, 0, w, h, w, h)) {
+            diff = true;
+        }
+        if !diff {
+            break;
+        }
+        iter += 1;
+    }
 }
 
 fn thinning_zs_post(
@@ -106,25 +173,6 @@ fn thinning_zs_post(
     }
 }
 
-pub fn thinning_zs(im: &mut [u8], w: usize, h: usize) {
-    let mut iter = 0;
-    loop {
-        dbg!(iter);
-        let mut diff = false;
-        if dbg!(thinning_zs_iteration(im, 0, 0, w, h, w, h, 0)) {
-            diff = true;
-            thinning_zs_post(im, 0, 0, w, h, w);
-        }
-        if dbg!(thinning_zs_iteration(im, 0, 0, w, h, w, h, 1)) {
-            diff = true;
-            thinning_zs_post(im, 0, 0, w, h, w);
-        }
-        if !diff {
-            break;
-        }
-        iter += 1;
-    }
-}
 
 pub fn thinning_zs_tiled(
     im: &mut [u8],
@@ -167,7 +215,7 @@ pub fn thinning_zs_tiled(
                 let win_y = ti_y * tile_height;
                 let win_w = tile_width.min(width - win_x);
                 let win_h = tile_height.min(height - win_y);
-                if thinning_zs_iteration(im, win_x, win_y, win_w, win_h, width, height, 0) {
+                if thinning_zs_iteration(im, win_x, win_y, win_w, win_h, width, height) {
                     tile_flags[ti_y * ntx + ti_x] |= FLAG_CHANGED_H;
                 } else {
                     tile_flags[ti_y * ntx + ti_x] &= !FLAG_CHANGED_H;
@@ -216,7 +264,7 @@ pub fn thinning_zs_tiled(
                 let win_y = ti_y * tile_height;
                 let win_w = tile_width.min(width - win_x);
                 let win_h = tile_height.min(height - win_y);
-                if thinning_zs_iteration(im, win_x, win_y, win_w, win_h, width, height, 1) {
+                if thinning_zs_iteration(im, win_x, win_y, win_w, win_h, width, height) {
                     tile_flags[ti_y * ntx + ti_x] |= FLAG_CHANGED_V;
                 } else {
                     tile_flags[ti_y * ntx + ti_x] &= !FLAG_CHANGED_V;
@@ -309,8 +357,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     // let width = 535120;
     // let height = 599280;
 
-    // thinning_zs(im, width, height);
-    thinning_zs_tiled(im, width, height, tile_width, tile_height);
+    thinning_zs(im, width, height);
+    // thinning_zs_tiled(im, width, height, tile_width, tile_height);
 
     // let skeleton = skeleton::trace_skeleton(im, width, height, 0, 0, 100000, 100000, 10, 999);
     // let mut out = BufWriter::new(File::create("skeleton.csv")?);
