@@ -13,39 +13,21 @@ use memmap2::{Mmap, MmapMut};
 
 // Implementation of https://github.com/OSGeo/grass/blob/main/raster/r.thin/thin_lines.c
 
-const TEMPL: [u8; 8] = [
-40,
-10,
-130,
-160,
-42,
-138,
-162,
-168
-];
+const TEMPL: [u8; 8] = [40, 10, 130, 160, 42, 138, 162, 168];
 
-const N_TEMPL: [u8; 8] = [
-131,
-224,
-56,
-14,
-128,
-32,
-8,
-2
-];
+const N_TEMPL: [u8; 8] = [131, 224, 56, 14, 128, 32, 8, 2];
 
 fn encode_neighbours(im: &[u8], i: usize, j: usize, w: usize, neg: bool) -> u8 {
-  let p2: u8 = im[(i - 1) * w + j] & 1;
-  let p3: u8 = im[(i - 1) * w + j + 1] & 1;
-  let p4: u8 = im[(i) * w + j + 1] & 1;
-  let p5: u8 = im[(i + 1) * w + j + 1] & 1;
-  let p6: u8 = im[(i + 1) * w + j] & 1;
-  let p7: u8 = im[(i + 1) * w + j - 1] & 1;
-  let p8: u8 = im[(i) * w + j - 1] & 1;
-  let p1: u8 = im[(i - 1) * w + j - 1] & 1;
-  
-  let k = !neg as u8;
+    let p2: u8 = im[(i - 1) * w + j] & 1;
+    let p3: u8 = im[(i - 1) * w + j + 1] & 1;
+    let p4: u8 = im[(i) * w + j + 1] & 1;
+    let p5: u8 = im[(i + 1) * w + j + 1] & 1;
+    let p6: u8 = im[(i + 1) * w + j] & 1;
+    let p7: u8 = im[(i + 1) * w + j - 1] & 1;
+    let p8: u8 = im[(i) * w + j - 1] & 1;
+    let p1: u8 = im[(i - 1) * w + j - 1] & 1;
+
+    let k = !neg as u8;
 
     ((p4 ^ k) << 5)
         | ((p3 ^ k) << 6)
@@ -64,7 +46,7 @@ fn thinning_zs_iteration(
     win_w: usize,
     win_h: usize,
     w: usize,
-    h: usize
+    h: usize,
 ) -> bool {
     let mut diff: bool = false;
     let min_x = if win_x == 0 { 1 } else { win_x };
@@ -80,48 +62,41 @@ fn thinning_zs_iteration(
         win_y + win_h
     };
     for r in 1..5 {
-      let ind1: usize;
-      let ind2: usize;
-      let ind3: usize;
-      
-      ind1 = r - 1;
+        let ind1: usize;
+        let ind2: usize;
+        let ind3: usize;
 
-      if r <= 3 {
-        ind2 = r;
-      } else {
-        ind2 = 0;
-      }
+        ind1 = r - 1;
 
-      ind3 = (r - 1) + 4;
+        if r <= 3 {
+            ind2 = r;
+        } else {
+            ind2 = 0;
+        }
 
-      for i in min_y..max_y {
-          for j in min_x..max_x {
-              let p1: u8 = im[i * w + j] & 1;
-              if p1 == 0 {
-                  continue;
-              }
-              let w_: u8 = encode_neighbours(&im, i, j, w, true);
-              let n_w_: u8 = encode_neighbours(&im, i, j, w, false);
-              if
-              (
-                ((TEMPL[ind1] & w_) == TEMPL[ind1]) &&
-                ((N_TEMPL[ind1] & n_w_) == N_TEMPL[ind1])
-              ) ||
-              (
-                ((TEMPL[ind2] & w_) == TEMPL[ind2]) &&
-                ((N_TEMPL[ind2] & n_w_) == N_TEMPL[ind2])
-              ) ||
-              (
-                ((TEMPL[ind3] & w_) == TEMPL[ind3]) &&
-                ((N_TEMPL[ind3] & n_w_) == N_TEMPL[ind3])
-              )
-              {
-                  diff = true;
-                  im[i * w + j] |= 2;
-              }
-          }
-      }
-      thinning_zs_post(im, win_x, win_y, win_w, win_h, w);
+        ind3 = (r - 1) + 4;
+
+        for i in min_y..max_y {
+            for j in min_x..max_x {
+                let p1: u8 = im[i * w + j] & 1;
+                if p1 == 0 {
+                    continue;
+                }
+                let w_: u8 = encode_neighbours(&im, i, j, w, true);
+                let n_w_: u8 = encode_neighbours(&im, i, j, w, false);
+                if (((TEMPL[ind1] & w_) == TEMPL[ind1])
+                    && ((N_TEMPL[ind1] & n_w_) == N_TEMPL[ind1]))
+                    || (((TEMPL[ind2] & w_) == TEMPL[ind2])
+                        && ((N_TEMPL[ind2] & n_w_) == N_TEMPL[ind2]))
+                    || (((TEMPL[ind3] & w_) == TEMPL[ind3])
+                        && ((N_TEMPL[ind3] & n_w_) == N_TEMPL[ind3]))
+                {
+                    diff = true;
+                    im[i * w + j] |= 2;
+                }
+            }
+        }
+        thinning_zs_post(im, win_x, win_y, win_w, win_h, w);
     }
     return diff;
 }
@@ -161,7 +136,6 @@ fn thinning_zs_post(
     }
 }
 
-
 pub fn thinning_zs_tiled(
     im: &mut [u8],
     width: usize,
@@ -195,10 +169,14 @@ pub fn thinning_zs_tiled(
                     && (ti_y == 0 || tile_flags[(ti_y - 1) * ntx + ti_x] & FLAG_DONE != 0)
                     && (ti_x == ntx - 1 || tile_flags[ti_y * ntx + ti_x + 1] & FLAG_DONE != 0)
                     && (ti_y == nty - 1 || tile_flags[(ti_y + 1) * ntx + ti_x] & FLAG_DONE != 0)
-                    && ((ti_y == nty - 1 || ti_x == ntx - 1) || tile_flags[(ti_y + 1) * ntx + ti_x + 1] & FLAG_DONE != 0)
-                    && ((ti_y == nty - 1 || ti_x == 0) || tile_flags[(ti_y + 1) * ntx + ti_x - 1] & FLAG_DONE != 0)
-                    && ((ti_y == 0 || ti_x == ntx - 1) || tile_flags[(ti_y - 1) * ntx + ti_x + 1] & FLAG_DONE != 0)
-                    && ((ti_y == 0 || ti_x == 0) || tile_flags[(ti_y - 1) * ntx + ti_x - 1] & FLAG_DONE != 0)
+                    && ((ti_y == nty - 1 || ti_x == ntx - 1)
+                        || tile_flags[(ti_y + 1) * ntx + ti_x + 1] & FLAG_DONE != 0)
+                    && ((ti_y == nty - 1 || ti_x == 0)
+                        || tile_flags[(ti_y + 1) * ntx + ti_x - 1] & FLAG_DONE != 0)
+                    && ((ti_y == 0 || ti_x == ntx - 1)
+                        || tile_flags[(ti_y - 1) * ntx + ti_x + 1] & FLAG_DONE != 0)
+                    && ((ti_y == 0 || ti_x == 0)
+                        || tile_flags[(ti_y - 1) * ntx + ti_x - 1] & FLAG_DONE != 0)
                 {
                     continue;
                 }
