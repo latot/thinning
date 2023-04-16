@@ -10,6 +10,7 @@ use gdal_sys::GDALRWFlag::GF_Write;
 use indicatif::ProgressBar;
 use log::LevelFilter;
 use memmap2::{Mmap, MmapMut};
+use ndarray::{s, Array2, ArrayView2, ArrayViewMut2};
 
 // Implementation of https://github.com/OSGeo/grass/blob/main/raster/r.thin/thin_lines.c
 
@@ -17,15 +18,15 @@ const TEMPL: [u8; 8] = [40, 10, 130, 160, 42, 138, 162, 168];
 
 const N_TEMPL: [u8; 8] = [131, 224, 56, 14, 128, 32, 8, 2];
 
-fn encode_neighbours(im: &[u8], i: usize, j: usize, w: usize, neg: bool) -> u8 {
-    let p2: u8 = im[(i - 1) * w + j] & 1;
-    let p3: u8 = im[(i - 1) * w + j + 1] & 1;
-    let p4: u8 = im[(i) * w + j + 1] & 1;
-    let p5: u8 = im[(i + 1) * w + j + 1] & 1;
-    let p6: u8 = im[(i + 1) * w + j] & 1;
-    let p7: u8 = im[(i + 1) * w + j - 1] & 1;
-    let p8: u8 = im[(i) * w + j - 1] & 1;
-    let p1: u8 = im[(i - 1) * w + j - 1] & 1;
+fn encode_neighbours(im: &mut ArrayViewMut2<u8>, i: usize, j: usize, w: usize, neg: bool) -> u8 {
+    let p2: u8 = im[[i - 1, j]] & 1;
+    let p3: u8 = im[[i - 1, j + 1]] & 1;
+    let p4: u8 = im[[i, j + 1]] & 1;
+    let p5: u8 = im[[i + 1, j + 1]] & 1;
+    let p6: u8 = im[[i + 1, j]] & 1;
+    let p7: u8 = im[[i + 1, j - 1]] & 1;
+    let p8: u8 = im[[i, j - 1]] & 1;
+    let p1: u8 = im[[i - 1, j - 1]] & 1;
 
     let k = !neg as u8;
 
@@ -40,7 +41,7 @@ fn encode_neighbours(im: &[u8], i: usize, j: usize, w: usize, neg: bool) -> u8 {
 }
 
 fn thinning_zs_iteration(
-    im: &mut [u8],
+    im: &mut ArrayViewMut2<u8>,
     win_x: usize,
     win_y: usize,
     win_w: usize,
@@ -78,12 +79,12 @@ fn thinning_zs_iteration(
 
     for i in min_y..max_y {
         for j in min_x..max_x {
-            let p1: u8 = im[i * w + j] & 1;
+            let p1: u8 = im[[i, j]] & 1;
             if p1 == 0 {
                 continue;
             }
-            let w_: u8 = encode_neighbours(&im, i, j, w, true);
-            let n_w_: u8 = encode_neighbours(&im, i, j, w, false);
+            let w_: u8 = encode_neighbours(im, i, j, w, true);
+            let n_w_: u8 = encode_neighbours(im, i, j, w, false);
             if (((TEMPL[ind1] & w_) == TEMPL[ind1]) && ((N_TEMPL[ind1] & n_w_) == N_TEMPL[ind1]))
                 || (((TEMPL[ind2] & w_) == TEMPL[ind2])
                     && ((N_TEMPL[ind2] & n_w_) == N_TEMPL[ind2]))
@@ -91,21 +92,21 @@ fn thinning_zs_iteration(
                     && ((N_TEMPL[ind3] & n_w_) == N_TEMPL[ind3]))
             {
                 diff = true;
-                im[i * w + j] |= 2;
+                im[[i, j]] |= 2;
             }
         }
     }
     return diff;
 }
 
-pub fn thinning_zs(im: &mut [u8], w: usize, h: usize) {
+pub fn thinning_zs(im: &mut ArrayViewMut2<u8>, w: usize, h: usize) {
     let mut iter = 0;
     loop {
         dbg!(iter);
         let mut diff = false;
         for r in 1..5 {
             if dbg!(thinning_zs_iteration(im, 0, 0, w, h, w, h, r)) {
-                thinning_zs_post(im, 0, 0, w, h, w);
+                thinning_zs_post(im);
                 diff = true;
             }
         }
@@ -116,28 +117,23 @@ pub fn thinning_zs(im: &mut [u8], w: usize, h: usize) {
     }
 }
 
-fn thinning_zs_post(
-    im: &mut [u8],
-    win_x: usize,
-    win_y: usize,
-    win_w: usize,
-    win_h: usize,
-    w: usize,
-) {
-    for i in win_y..win_y + win_h {
-        for j in win_x..win_x + win_w {
-            let marker = im[i * w + j] >> 1;
-            let old = im[i * w + j] & 1;
+fn thinning_zs_post(im: &mut ArrayViewMut2<u8>) {
+    let shape = im.shape();
+    let (h, w) = (shape[0], shape[1]);
+    for i in 0..h {
+        for j in 0..w {
+            let marker = im[[i, j]] >> 1;
+            let old = im[[i, j]] & 1;
             let new = old & (!marker);
             if new != old {
-                im[i * w + j] = new;
+                im[[i, j]] = new;
             }
         }
     }
 }
 
 pub fn thinning_zs_tiled(
-    im: &mut [u8],
+    im: &mut ArrayViewMut2<u8>,
     width: usize,
     height: usize,
     tile_width: usize,
@@ -185,6 +181,7 @@ pub fn thinning_zs_tiled(
                     let win_y = ti_y * tile_height;
                     let win_w = tile_width.min(width - win_x);
                     let win_h = tile_height.min(height - win_y);
+
                     if thinning_zs_iteration(im, win_x, win_y, win_w, win_h, width, height, r) {
                         tile_flags[ti_y * ntx + ti_x] |= FLAG_CHANGED;
                     }
@@ -198,7 +195,9 @@ pub fn thinning_zs_tiled(
                         let win_y = ti_y * tile_height;
                         let win_w = tile_width.min(width - win_x);
                         let win_h = tile_height.min(height - win_y);
-                        thinning_zs_post(im, win_x, win_y, win_w, win_h, width);
+                        thinning_zs_post(
+                            &mut im.slice_mut(s![win_y..win_y + win_h, win_x..win_x + win_w]),
+                        );
                     }
                 }
             }
@@ -272,8 +271,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     // let height = 599280;
 
     // thinning_zs(im, width, height);
-    let (tile_width, tile_height) = (8, 8);
-    thinning_zs_tiled(im, width, height, tile_width, tile_height);
+    let mut im = ArrayViewMut2::from_shape((height, width), im).expect("correct size");
+    // thinning_zs(&mut im, width, height);
+    thinning_zs_tiled(&mut im, width, height, tile_width, tile_height);
 
     // let skeleton = skeleton::trace_skeleton(im, width, height, 0, 0, 100000, 100000, 10, 999);
     // let mut out = BufWriter::new(File::create("skeleton.csv")?);

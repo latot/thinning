@@ -12,6 +12,7 @@ gdal-sys = { git = "https://github.com/georust/gdal", features = ["bindgen"] }
 indicatif = "0.17.3"
 log = "0.4.17"
 memmap2 = "0.5.10"
+ndarray = "0.15.6"
 
 [profile.release]
 # overflow-checks = true
