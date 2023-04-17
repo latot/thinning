@@ -146,6 +146,7 @@ pub fn thinning_zs_tiled(
     const FLAG_NONE: u8 = 0b0;
     const FLAG_DONE: u8 = 0b1;
     const FLAG_CHANGED: u8 = 0b10;
+    const FLAG_CHANGED_NOW: u8 = 0b100;
     let mut tile_flags = vec![FLAG_NONE; total_tiles];
 
     let mut iter = 1;
@@ -184,13 +185,14 @@ pub fn thinning_zs_tiled(
 
                     if thinning_zs_iteration(im, win_x, win_y, win_w, win_h, width, height, r) {
                         tile_flags[ti_y * ntx + ti_x] |= FLAG_CHANGED;
+                        tile_flags[ti_y * ntx + ti_x] |= FLAG_CHANGED_NOW;
                     }
                     pb.inc(1);
                 }
             }
             for ti_y in 0..nty {
                 for ti_x in 0..ntx {
-                    if tile_flags[ti_y * ntx + ti_x] & FLAG_CHANGED != 0 {
+                    if tile_flags[ti_y * ntx + ti_x] & FLAG_CHANGED_NOW != 0 {
                         let win_x = ti_x * tile_width;
                         let win_y = ti_y * tile_height;
                         let win_w = tile_width.min(width - win_x);
@@ -198,6 +200,7 @@ pub fn thinning_zs_tiled(
                         thinning_zs_post(
                             &mut im.slice_mut(s![win_y..win_y + win_h, win_x..win_x + win_w]),
                         );
+                        tile_flags[ti_y * ntx + ti_x] &= !FLAG_CHANGED_NOW;
                     }
                 }
             }
