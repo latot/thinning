@@ -12,6 +12,8 @@ use log::LevelFilter;
 use memmap2::{Mmap, MmapMut};
 use ndarray::{s, Array2, ArrayView2, ArrayViewMut2};
 
+mod non_empty_blocks;
+
 // Implementation of https://github.com/OSGeo/grass/blob/main/raster/r.thin/thin_lines.c
 
 const TEMPL: [u8; 8] = [40, 10, 130, 160, 42, 138, 162, 168];
@@ -136,6 +138,7 @@ pub fn thinning_zs_tiled(
     im: &mut ArrayViewMut2<u8>,
     width: usize,
     height: usize,
+    mut tile_flags: Vec<u8>,
     tile_width: usize,
     tile_height: usize,
 ) {
@@ -147,7 +150,8 @@ pub fn thinning_zs_tiled(
     const FLAG_DONE: u8 = 0b1;
     const FLAG_CHANGED: u8 = 0b10;
     const FLAG_CHANGED_NOW: u8 = 0b100;
-    let mut tile_flags = vec![FLAG_NONE; total_tiles];
+
+    //let mut tile_flags = vec![FLAG_NONE; total_tiles];
 
     let mut iter = 1;
     loop {
@@ -224,6 +228,8 @@ pub fn thinning_zs_tiled(
 
 fn main() -> Result<(), Box<dyn Error>> {
     let file = std::env::args().nth(1).unwrap();
+    let n_threads: usize = std::env::args().nth(2).unwrap().parse::<usize>().unwrap();
+    let non_empty_tiles: Vec<u8> = non_empty_blocks::non_empty_blocks(&file, n_threads).unwrap();
     let mut ds = Dataset::open_ex(
         &file,
         DatasetOptions {
@@ -276,7 +282,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     // thinning_zs(im, width, height);
     let mut im = ArrayViewMut2::from_shape((height, width), im).expect("correct size");
     // thinning_zs(&mut im, width, height);
-    thinning_zs_tiled(&mut im, width, height, tile_width, tile_height);
+    thinning_zs_tiled(
+        &mut im,
+        width,
+        height,
+        non_empty_tiles,
+        tile_width,
+        tile_height
+    );
 
     // let skeleton = skeleton::trace_skeleton(im, width, height, 0, 0, 100000, 100000, 10, 999);
     // let mut out = BufWriter::new(File::create("skeleton.csv")?);

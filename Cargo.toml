@@ -7,12 +7,15 @@ edition = "2021"
 
 [dependencies]
 env_logger = "0.10.0"
-gdal = { git = "https://github.com/georust/gdal", features = ["bindgen"] }
-gdal-sys = { git = "https://github.com/georust/gdal", features = ["bindgen"] }
+#gdal = { git = "https://github.com/georust/gdal", features = ["bindgen"] }
+#gdal-sys = { git = "https://github.com/georust/gdal", features = ["bindgen"] }
 indicatif = "0.17.3"
 log = "0.4.17"
 memmap2 = "0.5.10"
 ndarray = "0.15.6"
+gdal = { git = "https://github.com/georust/gdal/", features = ["bindgen"], version = "0.14.0" } 
+anyhow = "1.0.71"
+gdal-sys = { version = "0.8.0", features = ["bindgen"] }
 
 [profile.release]
 # overflow-checks = true
