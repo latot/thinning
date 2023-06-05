@@ -228,7 +228,7 @@ pub fn thinning_zs_tiled(
 
 fn main() -> Result<(), Box<dyn Error>> {
     let file = std::env::args().nth(1).unwrap();
-    let n_threads: usize = std::env::args().nth(2).unwrap().parse::<usize>().unwrap();
+    let n_threads: usize = std::env::args().nth(2).unwrap_or(String::from("1")).parse::<usize>().unwrap();
     let non_empty_tiles: Vec<u8> = non_empty_blocks::non_empty_blocks(&file, n_threads).unwrap();
     let mut ds = Dataset::open_ex(
         &file,
